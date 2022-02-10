@@ -81,32 +81,10 @@ class DesoApi {
         }
     }
 
-    async submitPost  (publicKey, body, postExtraData){
-        if(!publicKey){
-            console.log("publicKey is required")
-            return
-        }
-
-        if(!body){
-            console.log("body is required")
-            return
-        }
-
-        const path = "/v0/submit-post"
-        const data = {
-            UpdaterPublicKeyBase58Check: publicKey,
-            PostHashHexToModify: body.post,
-            ParentStakeID: "",
-            Title: body.name,
-            BodyObj: {Body: body.description, ImageURLs: [body.image]},
-            RecloutedPostHashHex: "",
-            PostExtraData: postExtraData,
-            Sub: "",
-            IsHidden:  false,
-            MinFeeRateNanosPerKB: 1000
-          }
+    async submitPost  (metadata){
+        const path = "/v0/submit-post";
         try{
-            const result = await this.getClient().post(path, data)
+            const result = await this.getClient().post(path, metadata)
 
             console.log(result.data.PostHashHex)
             return result.data
@@ -137,19 +115,9 @@ class DesoApi {
         
     }
 
-    async createNFT (publicKey, PostHashHex) {
-        if(!publicKey){
-            console.log("publicKey is required")
-            return
-        }
-
-        if(!PostHashHex){
-            console.log("PostHashHex is required")
-            return
-        }
-
+    async createNFT (data) {
         const path = "/v0/create-nft"
-        const data = {
+        /*const data = {
             UpdaterPublicKeyBase58Check: publicKey,
             NFTPostHashHex: PostHashHex,
             NumCopies: 1,
@@ -158,7 +126,7 @@ class DesoApi {
             HasUnlockable: false,
             IsForSale: true,
             MinFeeRateNanosPerKB: 1000
-          }
+          }*/
         try{
             const result = await this.getClient().post(path, data)
             return result.data

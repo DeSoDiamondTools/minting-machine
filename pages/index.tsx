@@ -95,68 +95,94 @@ class IndexPage extends PureComponent {
         this.setState({ files: [ ...this.state.files, ...filesArray] });
     }
 
-    convertImageToData = (imageToConvert, callback) => {
-        const fileReader = new FileReader();
+    convertImageToData = (imageToConvert) => 
+        new Promise((resolve, reject) => {
+            const fileReader = new FileReader();
 
-        fileReader.onload = async e => {
-            callback(new Uint8Array(e.target.result));
-        }
-        fileReader.readAsArrayBuffer(imageToConvert);
-    }
+            fileReader.onload = async e => {
+                resolve(new Uint8Array(e.target.result));
+            }
+            fileReader.readAsArrayBuffer(imageToConvert);
+        });
 
     uploadImageToArweave = async (imageToUpload) => {
+        const convertedImage = await this.convertImageToData(imageToUpload);
+
         const key = await arweave.wallets.generate();
-        
-        // I know this is not the best way to do this, but I'm not sure how to do it better
-        const callback = async convertedImage => {
-            let transaction = await arweave.createTransaction({ data: convertedImage }, key);
-            transaction.addTag("Content-Type", "image/png");
 
-            await arweave.transactions.sign(transaction, key);
+        let transaction = await arweave.createTransaction({ data: convertedImage }, key);
+        transaction.addTag("Content-Type", "image/png");
 
-            console.log(`https://arweave.net/${transaction.id}`);
-            const postResponse = await arweave.transactions.post(transaction);
-            console.log("post response", postResponse);
-            console.log(`https://arweave.net/${transaction.id}`)
-        }
+        await arweave.transactions.sign(transaction, key);
 
-        this.convertImageToData(imageToUpload, callback);
+        const postResponse = await arweave.transactions.post(transaction);
+        console.log("post response", postResponse);
+
+        return(`https://arweave.net/${transaction.id}`);
     }
 
-    readMetadata = (metadataFile) => {
-        const fileReader = new FileReader();
+    readMetadata = (metadataFile) => 
+        new Promise((resolve, reject) => {
+            const fileReader = new FileReader();
 
-        fileReader.onload = async e => {
-            console.log(JSON.parse(e.target.result));
+            fileReader.onload = async e => {
+                resolve(JSON.parse(e.target.result));
+            }
+            fileReader.readAsText(metadataFile);
+        });
 
-            //callback(new Uint8Array(e.target.result));
+    createDeSoPost = async (image, metadata) => {
+        const { publickey, desoApi, desoIdentity } = this.state;
+
+        const postMetadata = {
+            UpdaterPublicKeyBase58Check: publickey,
+            Title: metadata.name,
+            BodyObj: {Body: metadata.name, ImageURLs: [image]},
+            PostExtraData: {
+                app: "DiamondTools NFT Minting Machine",
+                ...metadata.attributes
+            },
+            MinFeeRateNanosPerKB: 1000
         }
-        fileReader.readAsText(metadataFile);
-    }
 
-    createDeSoPost = async () => {
-        /*const rtnSubmitPost = await desoApi.submitPost(publicKey, body, extraData);
+        const rtnSubmitPost = await desoApi.submitPost(postMetadata);
         const postTransactionHex = rtnSubmitPost.TransactionHex;
         const signedPostTransactionHex = await desoIdentity.signTxAsync(postTransactionHex);
         const rtnSubmitPostTransaction = await desoApi.submitTransaction(signedPostTransactionHex);
 
         if(rtnSubmitPostTransaction) {
-            setMessage(`🎉 ${i+1} Post created!`)
-            console.log(rtnSubmitPostTransaction)
-        }*/
+            //setMessage(`🎉 ${i+1} Post created!`)
+            return rtnSubmitPostTransaction.TxnHashHex;
+        }
     }
 
-    convertDeSoPostToNFT = async () => {
-        // Creating the NFT
-        /*const rtnCreateNFT = await desoApi.createNFT(publicKey, rtnSubmitPostTransaction.TxnHashHex);
+    convertDeSoPostToNFT = async (DeSoPostHashHex, metadata) => {
+        const { publickey, desoApi, desoIdentity } = this.state;
+
+        const NFTData = {
+            UpdaterPublicKeyBase58Check: publickey,
+            NFTPostHashHex: DeSoPostHashHex,
+            NumCopies: metadata.edition,
+            NFTRoyaltyToCreatorBasisPoints: 100,
+            NFTRoyaltyToCoinBasisPoints: 100,
+            HasUnlockable: false,
+            IsForSale: false,
+            /*MinBidAmountNanos: number,
+            IsBuyNow: boolean,
+            BuyNowPriceNanos: number,*/
+            MinFeeRateNanosPerKB: 1000
+        }
+
+        const rtnCreateNFT = await desoApi.createNFT(NFTData);
         const NFTTransactionHex = rtnCreateNFT.TransactionHex;
         const signedNFTTransactionHex = await desoIdentity.signTxAsync(NFTTransactionHex);
         const rtnSubmitNFTTransaction = await desoApi.submitTransaction(signedNFTTransactionHex); 
 
         if(rtnSubmitNFTTransaction) {
-            setMessage(`🎉 ${i+1} NFT created!`)
+            //setMessage(`🎉 ${i+1} NFT created!`)
+            console.log("NFT CREATED")
             console.log(rtnSubmitNFTTransaction)
-        }*/
+        }
     }
 
     mintNFTs = async () => {
@@ -166,14 +192,14 @@ class IndexPage extends PureComponent {
             const totalNFTs = files.length / 2;
             
             for(let i = 0; i < totalNFTs; i++) {
-                /*const imageToUpload = files.find(file => file.name == `${i}.png`);
-                const imageInArweave = this.uploadImageToArweave(imageToUpload);*/
+                const imageToUpload = files.find(file => file.name == `${i}.png`);
+                const imageInArweave = await this.uploadImageToArweave(imageToUpload);
 
-                /*const metadataFile = files.find(file => file.name == `${i}.json`);
-                const metadata = this.readMetadata(metadataFile);
+                const metadataFile = files.find(file => file.name == `${i}.json`);
+                const metadata = await this.readMetadata(metadataFile);
 
-                const DeSoPostHashHex = this.createDeSoPost(imageInArweave, metadata);
-                this.convertDeSoPostToNFT(DeSoPostHashHex);*/
+                const DeSoPostHashHex = await this.createDeSoPost(imageInArweave, metadata);
+                this.convertDeSoPostToNFT(DeSoPostHashHex, metadata);
             }
         }
     }
@@ -211,9 +237,9 @@ class IndexPage extends PureComponent {
 
                 {
                     isLogged ? (
-                        <button onClick={this.login} className="bg-purple-400 hover:bg-purple-300 py-2 px-4">Logout</button>
+                        <button onClick={this.logout} className="bg-purple-400 hover:bg-purple-300 py-2 px-4">Logout</button>
                     ) : (
-                        <button onClick={this.logout} className="bg-purple-400 hover:bg-purple-300 py-2 px-4">Login</button>
+                        <button onClick={this.login} className="bg-purple-400 hover:bg-purple-300 py-2 px-4">Login</button>
                     )
                 }
 
