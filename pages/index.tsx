@@ -1,9 +1,13 @@
 import React, { PureComponent, Fragment } from "react";
 
+import DesoIdentity from '../src/libs/desoIdentity';
+import DesoApi from '../src/libs/desoApi';
+
 import Arweave from "arweave";
 
 import ReactFileReader from 'react-file-reader';
-//import { } from "../src/sections/indexPage";
+
+const IdentityUsersKey = "identityUsersV2"
 
 const initOptions = {
     host: "arweave.net", // Hostname or IP address for a Arweave host
@@ -36,8 +40,54 @@ const FileInput = ({ files, handleFiles }) => {
 
 class IndexPage extends PureComponent {
     state = {
-        files: []
+        desoIdentity: null,
+        desoApi: null,
+
+        isLogged: false,
+        publickey: null,
+
+        files: [],
+        message: ""
     }
+
+    componentDidMount() {
+        const di = new DesoIdentity();
+        this.setState({ desoIdentity: di });
+        const da = new DesoApi()
+        this.setState({ desoApi: da });
+
+        console.log(localStorage);
+    
+        let user = {};
+        if (localStorage.getItem(IdentityUsersKey) === 'undefined'){
+          user = {}
+        } else if (localStorage.getItem(IdentityUsersKey)){
+          user = JSON.parse(localStorage.getItem(IdentityUsersKey) || '{}')
+        }
+    
+        if(user.publicKey){
+            this.setState({ publickey: user.publicKey });
+            this.setState({ isLogged: true });
+        }
+    }
+
+    login = async () => {
+        const { desoIdentity } = this.state;
+
+        const user = await desoIdentity.loginAsync(4)
+        this.setState({ publickey: user.publicKey });
+        this.setState({ isLogged: true });
+    }
+
+    logout = async () => {
+        const { desoIdentity, publickey } = this.state;
+
+        const result = await desoIdentity.logout(publickey)
+        this.setState({ publickey: null });
+        this.setState({ isLogged: false });
+    }
+
+    setMessage = (message) => this.setState({ message });
 
     handleFiles = (files) => {
         const filesArray = Array.from(files);
@@ -63,57 +113,85 @@ class IndexPage extends PureComponent {
             transaction.addTag("Content-Type", "image/png");
 
             await arweave.transactions.sign(transaction, key);
-            /*const postResponse = await arweave.transactions.post(transaction);
+
+            console.log(`https://arweave.net/${transaction.id}`);
+            const postResponse = await arweave.transactions.post(transaction);
             console.log("post response", postResponse);
-            console.log(`https://arweave.net/${transaction.id}`)*/
+            console.log(`https://arweave.net/${transaction.id}`)
         }
 
         this.convertImageToData(imageToUpload, callback);
     }
 
-    createDeSoPost = () => {
-        /*const body = {
-                POST: "",
-                "image": `https://arweave.net/${transaction.id}`,
-                "name": "IMAGE UPLOADED TO ARWEAVE, JESUUUUUUUUUUUUUUUUUUS",
-                "description": "This is the description of your NFT project",
-                "edition": 1,
-            };
+    readMetadata = (metadataFile) => {
+        const fileReader = new FileReader();
 
-            const extraData = {};
+        fileReader.onload = async e => {
+            console.log(JSON.parse(e.target.result));
 
-            const rtnSubmitPost = await desoApi.submitPost(publicKey, body, extraData);
-            const postTransactionHex = rtnSubmitPost.TransactionHex;
-            const signedPostTransactionHex = await desoIdentity.signTxAsync(postTransactionHex);
-            const rtnSubmitPostTransaction = await desoApi.submitTransaction(signedPostTransactionHex);
-
-            console.log(rtnSubmitPostTransaction)*/
+            //callback(new Uint8Array(e.target.result));
+        }
+        fileReader.readAsText(metadataFile);
     }
 
-    convertDeSoPostToNFT = () => {
+    createDeSoPost = async () => {
+        /*const rtnSubmitPost = await desoApi.submitPost(publicKey, body, extraData);
+        const postTransactionHex = rtnSubmitPost.TransactionHex;
+        const signedPostTransactionHex = await desoIdentity.signTxAsync(postTransactionHex);
+        const rtnSubmitPostTransaction = await desoApi.submitTransaction(signedPostTransactionHex);
 
+        if(rtnSubmitPostTransaction) {
+            setMessage(`🎉 ${i+1} Post created!`)
+            console.log(rtnSubmitPostTransaction)
+        }*/
     }
 
-    mintNFTs = () => {
+    convertDeSoPostToNFT = async () => {
+        // Creating the NFT
+        /*const rtnCreateNFT = await desoApi.createNFT(publicKey, rtnSubmitPostTransaction.TxnHashHex);
+        const NFTTransactionHex = rtnCreateNFT.TransactionHex;
+        const signedNFTTransactionHex = await desoIdentity.signTxAsync(NFTTransactionHex);
+        const rtnSubmitNFTTransaction = await desoApi.submitTransaction(signedNFTTransactionHex); 
+
+        if(rtnSubmitNFTTransaction) {
+            setMessage(`🎉 ${i+1} NFT created!`)
+            console.log(rtnSubmitNFTTransaction)
+        }*/
+    }
+
+    mintNFTs = async () => {
         const { files } = this.state;
 
         if(files.length > 0) {
             const totalNFTs = files.length / 2;
             
             for(let i = 0; i < totalNFTs; i++) {
-                const imageToUpload = files.find(file => file.name == `${i}.png`);
-                this.uploadImageToArweave(imageToUpload);
+                /*const imageToUpload = files.find(file => file.name == `${i}.png`);
+                const imageInArweave = this.uploadImageToArweave(imageToUpload);*/
 
+                /*const metadataFile = files.find(file => file.name == `${i}.json`);
+                const metadata = this.readMetadata(metadataFile);
+
+                const DeSoPostHashHex = this.createDeSoPost(imageInArweave, metadata);
+                this.convertDeSoPostToNFT(DeSoPostHashHex);*/
             }
         }
     }
 
 
     render () {
-        const { files } = this.state;
-
+        const { isLogged, files } = this.state;
+        
         return (
             <Fragment>
+                <iframe
+                    title="desoidentity"
+                    id="identity"
+                    frameBorder="0"
+                    src="https://identity.deso.org/embed?v=2"
+                    style={{height: "100vh", width: "100vw", display: "none", position: "fixed",  zIndex: 1000, left: 0, top: 0}}
+                ></iframe>
+                
                 <div className="p-4 bg-blue-200 text-center">
                     <h1 className="font-heading text-6xl text-yellow-500">First open NFT Minting Machine for DeSo</h1>
                     <h1 className="font-heading text-4xl text-blue-500">DiamondTools</h1>
@@ -131,7 +209,18 @@ class IndexPage extends PureComponent {
                     <img className="mx-auto" src="/images/metadata-standar.png" />
                 </div>
 
-                <div className="px-2 grid grid-cols-3 gap-4">
+                {
+                    isLogged ? (
+                        <button onClick={this.login} className="bg-purple-400 hover:bg-purple-300 py-2 px-4">Logout</button>
+                    ) : (
+                        <button onClick={this.logout} className="bg-purple-400 hover:bg-purple-300 py-2 px-4">Login</button>
+                    )
+                }
+
+                <div className="relative px-2 grid grid-cols-3 gap-4">
+                    {
+                        isLogged === false && <div className="absolute min-w-full min-h-full bg-red-200 flex justify-center items-center">have to login.</div>
+                    }
                     <div>
                         <h2 className="font-heading text-3xl">1. Upload your assets (metadata .json & art .png)</h2>
                         <FileInput files={files} handleFiles={this.handleFiles} />
